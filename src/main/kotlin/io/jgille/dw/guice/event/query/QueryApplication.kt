@@ -8,12 +8,12 @@ import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.google.inject.AbstractModule
 import com.google.inject.Guice
 import com.google.inject.Inject
-import com.google.inject.Provides
 import com.google.inject.multibindings.Multibinder
 import io.dropwizard.Application
 import io.dropwizard.Configuration
 import io.dropwizard.setup.Environment
 import io.jgille.dw.guice.event.core.DomainEventSchemas
+import io.jgille.dw.guice.event.core.OrderPayedEvent
 import io.jgille.dw.guice.event.core.OrderPlacedEvent
 import io.jgille.dw.guice.event.core.OrderShippedEvent
 import io.jgille.dw.guice.event.messaging.*
@@ -23,7 +23,7 @@ import javax.ws.rs.Path
 class QueryApplication : Application<Configuration>() {
     override fun run(configuration: Configuration, environment: Environment) {
         val injector = Guice.createInjector(CoreModule(environment))
-        environment.jersey().register(injector.getInstance(OrderResource::class.java))
+        environment.jersey().register(injector.getInstance(TriggerMessageHandlingResource::class.java))
     }
 
     companion object {
@@ -46,15 +46,16 @@ class CoreModule(private val environment: Environment) : AbstractModule() {
         bind(ObjectMapper::class.java).toInstance(environment.objectMapper)
         bind(DomainEventSchemas::class.java).toInstance(DomainEventSchemas.fromEventsOnClassPath())
         bind(DomainEventHandler::class.java).to(ReflectiveDomainEventHandler::class.java)
-        bind(OrderResource::class.java)
+        bind(TriggerMessageHandlingResource::class.java)
 
-        val controllerBinder = Multibinder.newSetBinder(binder(), EventController::class.java)
-        controllerBinder.addBinding().to(OrderController::class.java)
+        val binder = Multibinder.newSetBinder(binder(), Any::class.java, EventControllers::class.java)
+        binder.addBinding().to(OrderController::class.java)
+        binder.addBinding().to(PaymentController::class.java)
     }
 
 }
 
-class OrderController: EventController {
+class OrderController {
 
     @EventHandler
     fun onOrderPlaced(event: OrderPlacedEvent) {
@@ -68,9 +69,18 @@ class OrderController: EventController {
 
 }
 
+class PaymentController {
+
+    @EventHandler
+    fun onOrderPayed(event: OrderPayedEvent) {
+        println("Order ${event.orderId} payed")
+    }
+
+}
+
 @Path("/")
-class OrderResource @Inject constructor(private val messageHandler: MessageHandler,
-                                        private val objectMapper: ObjectMapper) {
+class TriggerMessageHandlingResource @Inject constructor(private val messageHandler: MessageHandler,
+                                                         private val objectMapper: ObjectMapper) {
 
     @POST
     @Path("/orders/placed")
@@ -80,8 +90,14 @@ class OrderResource @Inject constructor(private val messageHandler: MessageHandl
 
     @POST
     @Path("/orders/shipped")
-    fun orderPlaced(request: OrderShippedRequest) {
+    fun orderShipped(request: OrderShippedRequest) {
         messageHandler.handle(Message("order_shipped_v1", objectMapper.writeValueAsBytes(request)))
+    }
+
+    @POST
+    @Path("/orders/payed")
+    fun orderPlaced(request: OrderPayedRequest) {
+        messageHandler.handle(Message("order_payed_v1", objectMapper.writeValueAsBytes(request)))
     }
 
     class OrderPlacedRequest {
@@ -90,6 +106,10 @@ class OrderResource @Inject constructor(private val messageHandler: MessageHandl
     }
 
     class OrderShippedRequest {
+        lateinit var orderId: String
+    }
+
+    class OrderPayedRequest {
         lateinit var orderId: String
     }
 }

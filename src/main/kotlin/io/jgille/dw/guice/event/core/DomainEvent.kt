@@ -11,6 +11,9 @@ data class OrderPlacedEvent(val orderId: String, val amount: Long) : DomainEvent
 @Schema("order_shipped_v1")
 data class OrderShippedEvent(val orderId: String) : DomainEvent()
 
+@Schema("order_payed_v1")
+data class OrderPayedEvent(val orderId: String) : DomainEvent()
+
 @Target(AnnotationTarget.CLASS)
 @Retention(AnnotationRetention.RUNTIME)
 annotation class Schema(val value: String)

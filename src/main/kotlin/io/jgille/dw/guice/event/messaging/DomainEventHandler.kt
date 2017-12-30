@@ -1,5 +1,6 @@
 package io.jgille.dw.guice.event.messaging
 
+import com.google.inject.BindingAnnotation
 import io.jgille.dw.guice.event.core.DomainEvent
 import java.lang.reflect.Method
 import javax.inject.Inject
@@ -14,7 +15,7 @@ class ReflectiveDomainEventHandler : DomainEventHandler {
 
     @Suppress("ConvertSecondaryConstructorToPrimary", "unused")
     @Inject
-    constructor(eventControllers: MutableSet<EventController>) {
+    constructor(@EventControllers eventControllers: MutableSet<Any>) {
         eventControllers.forEach {registerEventController(it)}
     }
 
@@ -24,7 +25,7 @@ class ReflectiveDomainEventHandler : DomainEventHandler {
         handlerFunction(event)
     }
 
-    fun registerEventController(controller: Any) {
+    private fun registerEventController(controller: Any) {
         controller.javaClass.methods.filter { isEventHandlerMethod(it) }.forEach {
             @Suppress("UNCHECKED_CAST")
             handlerFunctions[it.parameterTypes[0] as Class<out DomainEvent>] = {
@@ -41,4 +42,7 @@ class ReflectiveDomainEventHandler : DomainEventHandler {
 
 }
 
-interface EventController
+@BindingAnnotation
+@Target(AnnotationTarget.FUNCTION, AnnotationTarget.VALUE_PARAMETER)
+@Retention(AnnotationRetention.RUNTIME)
+annotation class EventControllers
